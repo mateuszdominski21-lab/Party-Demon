@@ -12,7 +12,7 @@ async function startReflex(interaction, client, gameKey) {
     handleButton: null,
   };
   client.activeGames.set(gameKey, state);
-  await interaction.update({ components: [], embeds: [] });
+  await interaction.deferUpdate();
   await nextReflexRound(interaction, client, gameKey, state);
 }
 
