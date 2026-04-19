@@ -69,7 +69,7 @@ async function startEmojiGuess(interaction, client, gameKey) {
     handleButton: null,
   };
   client.activeGames.set(gameKey, state);
-  await interaction.update({ components: [], embeds: [] });
+  await interaction.deferUpdate();
   await askEmojiQuestion(interaction, client, gameKey, state);
 }
 
