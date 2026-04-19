@@ -32,39 +32,6 @@ module.exports = {
       new ButtonBuilder().setCustomId('menu_bomb').setLabel('🧨 Bomba').setStyle(ButtonStyle.Danger),
     );
 
-    const reply = await interaction.reply({ embeds: [embed], components: [row1, row2], fetchReply: true });
-
-    const gameKey = `${interaction.guildId}-${interaction.channelId}`;
-
-    const collector = reply.createMessageComponentCollector({ time: 30000 });
-
-    collector.on('collect', async (btn) => {
-      if (btn.user.id !== interaction.user.id) {
-        return btn.reply({ content: '❌ To nie twoje menu!', ephemeral: true });
-      }
-      collector.stop();
-
-      const { startQuiz } = require('../games/quiz');
-      const { startMemory } = require('../games/memory');
-      const { startDoors } = require('../games/doors');
-      const { startReflex } = require('../games/reflex');
-      const { startEmojiGuess } = require('../games/emoji-guess');
-      const { startBomb } = require('../games/bomb');
-
-      switch (btn.customId) {
-        case 'menu_quiz': await startQuiz(btn, client, gameKey); break;
-        case 'menu_memory': await startMemory(btn, client, gameKey); break;
-        case 'menu_doors': await startDoors(btn, client, gameKey); break;
-        case 'menu_reflex': await startReflex(btn, client, gameKey); break;
-        case 'menu_emoji': await startEmojiGuess(btn, client, gameKey); break;
-        case 'menu_bomb': await startBomb(btn, client, gameKey); break;
-      }
-    });
-
-    collector.on('end', (_, reason) => {
-      if (reason === 'time') {
-        interaction.editReply({ components: [] }).catch(() => {});
-      }
-    });
+    await interaction.reply({ embeds: [embed], components: [row1, row2] });
   },
 };
