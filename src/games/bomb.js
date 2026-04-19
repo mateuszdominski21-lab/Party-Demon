@@ -18,7 +18,7 @@ async function startBomb(interaction, client, gameKey) {
     handleButton: null,
   };
   client.activeGames.set(gameKey, state);
-  await interaction.update({ components: [], embeds: [] });
+  await interaction.deferUpdate();
   await showBombRound(interaction, client, gameKey, state);
 }
 
