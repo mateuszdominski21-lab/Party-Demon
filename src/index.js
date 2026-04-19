@@ -13,9 +13,8 @@ const client = new Client({
 });
 
 client.commands = new Collection();
-client.activeGames = new Map(); // guildId+channelId -> game state
+client.activeGames = new Map();
 
-// Ładowanie komend
 const commandsPath = path.join(__dirname, 'commands');
 if (fs.existsSync(commandsPath)) {
   const commandFiles = fs.readdirSync(commandsPath).filter(f => f.endsWith('.js'));
@@ -27,36 +26,57 @@ if (fs.existsSync(commandsPath)) {
   }
 }
 
+const { startQuiz } = require('./games/quiz');
+const { startMemory } = require('./games/memory');
+const { startDoors } = require('./games/doors');
+const { startReflex } = require('./games/reflex');
+const { startEmojiGuess } = require('./games/emoji-guess');
+const { startBomb } = require('./games/bomb');
+
 client.once('ready', () => {
   console.log(`✅ Bot zalogowany jako ${client.user.tag}`);
   client.user.setActivity('🎮 Mini Gry | /graj', { type: 0 });
 });
 
 client.on('interactionCreate', async (interaction) => {
-  if (interaction.isChatInputCommand()) {
-    const command = client.commands.get(interaction.commandName);
-    if (!command) return;
-    try {
+  try {
+    if (interaction.isChatInputCommand()) {
+      const command = client.commands.get(interaction.commandName);
+      if (!command) return;
       await command.execute(interaction, client);
-    } catch (err) {
-      console.error(err);
-      const msg = { content: '❌ Wystąpił błąd!', ephemeral: true };
-      if (interaction.replied || interaction.deferred) {
-        await interaction.followUp(msg).catch(() => {});
-      } else {
-        await interaction.reply(msg).catch(() => {});
+
+    } else if (interaction.isButton()) {
+      const gameKey = `${interaction.guildId}-${interaction.channelId}`;
+
+      if (interaction.customId.startsWith('menu_')) {
+        switch (interaction.customId) {
+          case 'menu_quiz': await startQuiz(interaction, client, gameKey); break;
+          case 'menu_memory': await startMemory(interaction, client, gameKey); break;
+          case 'menu_doors': await startDoors(interaction, client, gameKey); break;
+          case 'menu_reflex': await startReflex(interaction, client, gameKey); break;
+          case 'menu_emoji': await startEmojiGuess(interaction, client, gameKey); break;
+          case 'menu_bomb': await startBomb(interaction, client, gameKey); break;
+        }
+        return;
       }
-    }
-  } else if (interaction.isButton()) {
-    const gameKey = `${interaction.guildId}-${interaction.channelId}`;
-    const game = client.activeGames.get(gameKey);
-    if (game && game.handleButton) {
-      try {
+
+      const game = client.activeGames.get(gameKey);
+      if (game && game.handleButton) {
         await game.handleButton(interaction);
-      } catch (err) {
-        console.error(err);
+      } else {
+        await interaction.reply({ content: '⏰ Ta gra wygasła! Wpisz `/graj` żeby zacząć nową.', ephemeral: true });
       }
     }
+  } catch (err) {
+    console.error('Błąd:', err);
+    try {
+      const msg = { content: '❌ Błąd!', ephemeral: true };
+      if (interaction.replied || interaction.deferred) {
+        await interaction.followUp(msg);
+      } else {
+        await interaction.reply(msg);
+      }
+    } catch {}
   }
 });
 
