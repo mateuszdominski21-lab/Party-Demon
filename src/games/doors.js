@@ -29,7 +29,7 @@ async function startDoors(interaction, client, gameKey) {
     handleButton: null,
   };
   client.activeGames.set(gameKey, state);
-  await interaction.update({ components: [], embeds: [] });
+  await interaction.deferUpdate();
   await showDoors(interaction, client, gameKey, state);
 }
 
