@@ -16,7 +16,7 @@ async function startMemory(interaction, client, gameKey) {
     handleButton: null,
   };
   client.activeGames.set(gameKey, state);
-  await interaction.update({ components: [], embeds: [] });
+  await interaction.deferUpdate();
   await showRound(interaction, client, gameKey, state);
 }
 
