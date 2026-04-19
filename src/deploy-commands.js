@@ -27,7 +27,7 @@ const rest = new REST().setToken(process.env.DISCORD_TOKEN);
       console.log('✅ Komendy zarejestrowane na serwerze (tryb testowy).');
     } else {
       await rest.put(
-        Routes.applicationCommands(process.env.CLIENT_ID),
+       Routes.applicationCommands(String(process.env.CLIENT_ID)),
         { body: commands }
       );
       console.log('✅ Komendy zarejestrowane globalnie (może potrwać do 1h).');
