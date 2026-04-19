@@ -18,20 +18,11 @@ const rest = new REST().setToken(process.env.DISCORD_TOKEN);
   try {
     console.log(`🔄 Rejestruję ${commands.length} komend(y)...`);
     
-    // Jeśli GUILD_ID ustawione — deploy tylko na ten serwer (szybszy, do testów)
-    if (process.env.GUILD_ID) {
-      await rest.put(
-        Routes.applicationGuildCommands(process.env.CLIENT_ID, process.env.GUILD_ID),
-        { body: commands }
-      );
-      console.log('✅ Komendy zarejestrowane na serwerze (tryb testowy).');
-    } else {
-      await rest.put(
-       Routes.applicationCommands(String(process.env.CLIENT_ID)),
-        { body: commands }
-      );
-      console.log('✅ Komendy zarejestrowane globalnie (może potrwać do 1h).');
-    }
+   await rest.put(
+  Routes.applicationCommands(String(process.env.CLIENT_ID)),
+  { body: commands }
+);
+console.log('✅ Komendy zarejestrowane globalnie (może potrwać do 1h).');
   } catch (err) {
     console.error(err);
   }
