@@ -19,7 +19,7 @@ const rest = new REST().setToken(process.env.DISCORD_TOKEN);
     console.log(`🔄 Rejestruję ${commands.length} komend(y)...`);
     
    await rest.put(
-  Routes.applicationCommands(String(process.env.CLIENT_ID)),
+Routes.applicationCommands(process.env.CLIENT_ID.trim().replace(/[^0-9]/g, '')),
   { body: commands }
 );
 console.log('✅ Komendy zarejestrowane globalnie (może potrwać do 1h).');
