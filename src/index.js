@@ -44,7 +44,14 @@ client.once('ready', () => {
 
 client.on('interactionCreate', async (interaction) => {
   try {
-    if (interaction.isChatInputCommand()) {
+if (interaction.isChatInputCommand()) {
+  const musicCommands = ['play', 'skip', 'loop', 'kick'];
+  if (!musicCommands.includes(interaction.commandName) && !interaction.channel.name.includes('mini-gierki')) {
+    return interaction.reply({ content: '❌ Użyj komendy /graj na kanale 🎮║mini-gierki!', ephemeral: true });
+  }
+  const command = client.commands.get(interaction.commandName);
+  if (!command) return;
+  await command.execute(interaction, client);
       const command = client.commands.get(interaction.commandName);
       if (!command) return;
       await command.execute(interaction, client);
