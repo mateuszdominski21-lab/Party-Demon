@@ -49,13 +49,6 @@ if (interaction.isChatInputCommand()) {
   if (!musicCommands.includes(interaction.commandName) && !interaction.channel.name.includes('mini-gierki')) {
     return interaction.reply({ content: '❌ Użyj komendy /graj na kanale 🎮║mini-gierki!', ephemeral: true });
   }
-  const command = client.commands.get(interaction.commandName);
-  if (!command) return;
-  await command.execute(interaction, client);
-      const command = client.commands.get(interaction.commandName);
-      if (!command) return;
-      await command.execute(interaction, client);
-
     } else if (interaction.isButton()) {
       const gameKey = `${interaction.guildId}-${interaction.channelId}`;
 
