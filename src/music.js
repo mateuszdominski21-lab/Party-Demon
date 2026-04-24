@@ -81,7 +81,7 @@ async function handlePlay(interaction) {
   await interaction.deferReply();
 
   const member = interaction.member;
-  const voiceChannel = member.voice?.channel;
+  const voiceChannel = interaction.member?.voice?.channel;
 
   if (!voiceChannel) {
     return interaction.editReply('❌ Musisz być na kanale głosowym!');
