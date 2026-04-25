@@ -1,6 +1,6 @@
 # 🎮 Discord Mini Games Bot
 
-Bot z 6 mini grami dla Discord, napisany w Node.js + discord.js v14.
+Bot z 6 mini grami dla Discord, napisany w Node.js + discord.js v14. 
 
 ## 🎯 Dostępne Gry
 
