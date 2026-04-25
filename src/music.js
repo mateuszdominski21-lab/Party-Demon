@@ -1,51 +1,113 @@
-const { DisTube } = require('distube');
+const {
+  joinVoiceChannel,
+  createAudioPlayer,
+  createAudioResource,
+  AudioPlayerStatus,
+  VoiceConnectionStatus,
+  getVoiceConnection,
+} = require('@discordjs/voice');
+const ytdl = require('ytdl-core');
 const { EmbedBuilder } = require('discord.js');
 
-let distube = null;
+const queues = new Map();
 
-function initDistube(client) {
-  distube = new DisTube(client, {
-    emitNewSongOnly: true,
-    emitAddSongWhenCreatingQueue: false,
-  });
-
-  distube.on('playSong', (queue, song) => {
-    const embed = new EmbedBuilder()
-      .setTitle('🎵 Teraz gra')
-      .setDescription(`**[${song.name}](${song.url})**`)
-      .addFields(
-        { name: '⏱️ Czas', value: song.formattedDuration || 'Nieznany', inline: true },
-        { name: '👤 Dodał', value: song.user?.username || 'Nieznany', inline: true },
-      )
-      .setColor(0x5865F2)
-      .setThumbnail(song.thumbnail || null)
-      .setTimestamp();
-    queue.textChannel?.send({ embeds: [embed] }).catch(() => {});
-  });
-
-  distube.on('addSong', (queue, song) => {
-    const embed = new EmbedBuilder()
-      .setTitle('📋 Dodano do kolejki')
-      .setDescription(`**${song.name}**`)
-      .addFields({ name: '📍 Pozycja', value: `${queue.songs.length}`, inline: true })
-      .setColor(0x5865F2);
-    queue.textChannel?.send({ embeds: [embed] }).catch(() => {});
-  });
-
-  distube.on('error', (channel, error) => {
-    console.error('DisTube error:', error);
-    channel?.send('❌ Błąd odtwarzania: ' + error.message).catch(() => {});
-  });
-
-  distube.on('finish', (queue) => {
-    queue.textChannel?.send('✅ Kolejka skończona!').catch(() => {});
-  });
-
-  return distube;
+function getQueue(guildId) {
+  if (!queues.has(guildId)) {
+    queues.set(guildId, {
+      songs: [],
+      player: null,
+      connection: null,
+      loop: 0,
+      loopCount: 0,
+      currentSong: null,
+      textChannel: null,
+    });
+  }
+  return queues.get(guildId);
 }
 
-function getDistube() {
-  return distube;
+async function playSong(queue, song) {
+  if (!song) {
+    queue.currentSong = null;
+    return;
+  }
+  queue.currentSong = song;
+
+  try {
+    const stream = ytdl(song.url, {
+      filter: 'audioonly',
+      quality: 'lowestAudio',
+      highWaterMark: 1 << 25,
+    });
+
+    const resource = createAudioResource(stream);
+    queue.player.play(resource);
+
+    queue.player.once(AudioPlayerStatus.Idle, async () => {
+      if (queue.loop > 0 && queue.loopCount < queue.loop) {
+        queue.loopCount++;
+        await playSong(queue, song);
+        return;
+      }
+      queue.loopCount = 0;
+      queue.songs.shift();
+      await playSong(queue, queue.songs[0]);
+    });
+
+    if (queue.textChannel) {
+      const embed = new EmbedBuilder()
+        .setTitle('🎵 Teraz gra')
+        .setDescription(`**[${song.title}](${song.url})**`)
+        .addFields(
+          { name: '⏱️ Czas', value: song.duration || 'Nieznany', inline: true },
+          { name: '👤 Dodał', value: song.requestedBy, inline: true },
+          { name: '🔁 Pętla', value: queue.loop > 0 ? `${queue.loopCount}/${queue.loop}x` : 'Wyłączona', inline: true },
+        )
+        .setColor(0x5865F2)
+        .setThumbnail(song.thumbnail || null)
+        .setTimestamp();
+      queue.textChannel.send({ embeds: [embed] }).catch(() => {});
+    }
+  } catch (err) {
+    console.error('Błąd odtwarzania:', err);
+    if (queue.textChannel) {
+      queue.textChannel.send('❌ Błąd odtwarzania, pomijam...').catch(() => {});
+    }
+    queue.songs.shift();
+    await playSong(queue, queue.songs[0]);
+  }
+}
+
+async function searchYoutube(query) {
+  if (ytdl.validateURL(query)) {
+    const info = await ytdl.getInfo(query);
+    return {
+      title: info.videoDetails.title,
+      url: query,
+      duration: formatDuration(parseInt(info.videoDetails.lengthSeconds)),
+      thumbnail: info.videoDetails.thumbnails[0]?.url || null,
+    };
+  }
+  // Search by title using YouTube search URL
+  const searchUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`;
+  const response = await fetch(searchUrl);
+  const html = await response.text();
+  const match = html.match(/"videoId":"([^"]+)"/);
+  if (!match) throw new Error('Nie znaleziono piosenki');
+  const videoUrl = `https://www.youtube.com/watch?v=${match[1]}`;
+  const info = await ytdl.getInfo(videoUrl);
+  return {
+    title: info.videoDetails.title,
+    url: videoUrl,
+    duration: formatDuration(parseInt(info.videoDetails.lengthSeconds)),
+    thumbnail: info.videoDetails.thumbnails[0]?.url || null,
+  };
+}
+
+function formatDuration(seconds) {
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
 async function handlePlay(interaction) {
@@ -57,77 +119,104 @@ async function handlePlay(interaction) {
   }
 
   const query = interaction.options.getString('query');
+  const guildId = interaction.guildId;
+  const queue = getQueue(guildId);
+  queue.textChannel = interaction.channel;
 
   try {
-    await distube.play(voiceChannel, query, {
-      member: interaction.member,
-      textChannel: interaction.channel,
-      interaction,
+    const song = await searchYoutube(query);
+    song.requestedBy = interaction.user.username;
+    queue.songs.push(song);
+
+    if (!queue.connection || queue.connection.state.status === VoiceConnectionStatus.Destroyed) {
+      const connection = joinVoiceChannel({
+        channelId: voiceChannel.id,
+        guildId: guildId,
+        adapterCreator: interaction.guild.voiceAdapterCreator,
+      });
+      queue.connection = connection;
+
+      const player = createAudioPlayer();
+      queue.player = player;
+      connection.subscribe(player);
+
+      connection.on(VoiceConnectionStatus.Disconnected, async () => {
+        try {
+          await Promise.race([
+            new Promise((_, r) => setTimeout(r, 5000)),
+          ]);
+        } catch {
+          connection.destroy();
+          queues.delete(guildId);
+        }
+      });
+
+      await playSong(queue, queue.songs[0]);
+      return interaction.editReply({
+        embeds: [new EmbedBuilder()
+          .setTitle('🎵 Odtwarzam!')
+          .setDescription(`**${song.title}**`)
+          .setColor(0x57F287)]
+      });
+    }
+
+    return interaction.editReply({
+      embeds: [new EmbedBuilder()
+        .setTitle('📋 Dodano do kolejki')
+        .setDescription(`**${song.title}**`)
+        .addFields({ name: '📍 Pozycja', value: `${queue.songs.length}`, inline: true })
+        .setColor(0x5865F2)]
     });
-    await interaction.editReply(`▶️ Szukam: **${query}**`);
+
   } catch (err) {
     console.error('Play error:', err);
-    await interaction.editReply('❌ Błąd! Sprawdź link lub nazwę piosenki.');
+    return interaction.editReply('❌ Błąd! Sprawdź link lub nazwę piosenki.');
   }
 }
 
 async function handleSkip(interaction) {
-  const queue = distube.getQueue(interaction.guildId);
-  if (!queue) {
+  const queue = getQueue(interaction.guildId);
+  if (!queue.player || !queue.currentSong) {
     return interaction.reply({ content: '❌ Nic nie gra!', ephemeral: true });
   }
-
-  try {
-    await queue.skip();
-    return interaction.reply({
-      embeds: [new EmbedBuilder()
-        .setTitle('⏭️ Pominięto!')
-        .setColor(0xFEE75C)]
-    });
-  } catch {
-    return interaction.reply({ content: '❌ Brak następnej piosenki w kolejce!', ephemeral: true });
-  }
+  queue.loopCount = 0;
+  queue.loop = 0;
+  queue.player.stop();
+  return interaction.reply({
+    embeds: [new EmbedBuilder().setTitle('⏭️ Pominięto!').setColor(0xFEE75C)]
+  });
 }
 
 async function handleLoop(interaction) {
-  const queue = distube.getQueue(interaction.guildId);
-  if (!queue) {
+  const queue = getQueue(interaction.guildId);
+  if (!queue.currentSong) {
     return interaction.reply({ content: '❌ Nic nie gra!', ephemeral: true });
   }
-
   const times = interaction.options.getInteger('ile') || 10;
-  queue.setRepeatMode(1);
-
-  let count = 0;
-  const interval = setInterval(() => {
-    count++;
-    if (count >= times) {
-      queue.setRepeatMode(0);
-      clearInterval(interval);
-    }
-  }, (queue.songs[0]?.duration || 180) * 1000 / times);
-
+  queue.loop = times;
+  queue.loopCount = 0;
   return interaction.reply({
     embeds: [new EmbedBuilder()
       .setTitle('🔁 Pętla włączona!')
-      .setDescription(`Piosenka będzie zapętlona **${times}x**`)
+      .setDescription(`Zapętlono **${times}x**`)
       .setColor(0x5865F2)]
   });
 }
 
 async function handleKick(interaction) {
-  const queue = distube.getQueue(interaction.guildId);
-  if (!queue) {
-    return interaction.reply({ content: '❌ Bot nie jest na kanale głosowym!', ephemeral: true });
+  const queue = getQueue(interaction.guildId);
+  const connection = queue.connection || getVoiceConnection(interaction.guildId);
+  if (!connection) {
+    return interaction.reply({ content: '❌ Bot nie jest na kanale!', ephemeral: true });
   }
-
-  await queue.stop();
+  if (queue.player) queue.player.stop();
+  connection.destroy();
+  queues.delete(interaction.guildId);
   return interaction.reply({
     embeds: [new EmbedBuilder()
       .setTitle('👋 Do zobaczenia!')
-      .setDescription('Bot opuścił kanał głosowy.')
       .setColor(0xED4245)]
   });
 }
 
-module.exports = { initDistube, getDistube, handlePlay, handleSkip, handleLoop, handleKick };
+module.exports = { handlePlay, handleSkip, handleLoop, handleKick };
