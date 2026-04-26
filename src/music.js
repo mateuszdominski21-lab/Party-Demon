@@ -60,7 +60,7 @@ async function handlePlay(interaction) {
 
     // Search
     const isUrl = query.startsWith('http');
-    const result = await node.rest.resolve(isUrl ? query : `ytsearch:${query}`);
+   const result = await node.rest.resolve(isUrl ? query : `scsearch:${query}`);
     
     if (!result || !result.data || result.loadType === 'empty' || result.loadType === 'error') {
       return interaction.editReply('❌ Nie znaleziono piosenki!');
