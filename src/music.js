@@ -12,11 +12,13 @@ const queues = new Map();
 let shoukaku = null;
 
 function initShoukaku(client) {
-  shoukaku = new Shoukaku(new Connectors.DiscordJS(client), LavalinkNodes, {
-    reconnectTries: 3,
-    reconnectInterval: 5000,
-    restTimeout: 10000,
-  });
+ shoukaku = new Shoukaku(new Connectors.DiscordJS(client), LavalinkNodes, {
+  reconnectTries: 10,
+  reconnectInterval: 10000,
+  restTimeout: 30000,
+  moveOnDisconnect: false,
+  resumeByLibrary: false,
+});
 
   shoukaku.on('error', (_, error) => console.error('Shoukaku error:', error));
   shoukaku.on('ready', (name) => console.log(`✅ Lavalink node ${name} ready!`));
