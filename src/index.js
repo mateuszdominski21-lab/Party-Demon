@@ -9,7 +9,6 @@ const client = new Client({
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent,
     GatewayIntentBits.GuildMessageReactions,
-    GatewayIntentBits.GuildVoiceStates,
   ],
 });
 
@@ -36,19 +35,16 @@ const { startDoors } = require('./games/doors');
 const { startReflex } = require('./games/reflex');
 const { startEmojiGuess } = require('./games/emoji-guess');
 const { startBomb } = require('./games/bomb');
-const { initShoukaku } = require('./music');
 
 client.once('ready', () => {
   console.log(`✅ Bot zalogowany jako ${client.user.tag}`);
   client.user.setActivity('🎮 Mini Gry | /graj', { type: 0 });
-  initShoukaku(client);
 });
 
 client.on('interactionCreate', async (interaction) => {
   try {
     if (interaction.isChatInputCommand()) {
-      const musicCommands = ['play', 'skip', 'loop', 'kick'];
-      if (!musicCommands.includes(interaction.commandName) && !interaction.channel.name.includes('mini-gierki')) {
+      if (!interaction.channel.name.includes('mini-gierki')) {
         return interaction.reply({ content: '❌ Użyj komendy /graj na kanale 🎮║mini-gierki!', ephemeral: true });
       }
       const command = client.commands.get(interaction.commandName);
